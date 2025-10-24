@@ -1,38 +1,146 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
-import './App.css'
+import React, { useState, useEffect, useRef } from 'react';
+import { Mic, Globe } from 'lucide-react';
 
-function App() {
+// Language options for the dropdown
+const languageOptions = [
+  { value: 'detect', label: 'Detect Language' },
+  { value: 'en-US', label: 'English (US)' },
+  { value: 'es-ES', label: 'Español (España)' },
+  { value: 'fr-FR', label: 'Français (France)' },
+  { value: 'de-DE', label: 'Deutsch (Deutschland)' },
+  { value: 'ja-JP', label: '日本語 (日本)' },
+  { value: 'ko-KR', label: '한국어 (대한민국)' },
+  { value: 'hi-IN', label: 'हिन्दी (भारत)' },
+  { value: 'ar-SA', label: 'العربية (السعودية)' },
+];
+
+/**
+ * Main application component.
+ * Renders the UI for the multilingual AI voice chatbot.
+ */
+export default function App() {
+  const [isRecording, setIsRecording] = useState(false);
+  const [selectedLanguage, setSelectedLanguage] = useState('detect');
+  const [recordingTime, setRecordingTime] = useState(0);
+  const timerRef = useRef(null);
+
+  // Effect to handle the recording timer
+  useEffect(() => {
+    if (isRecording) {
+      // Start the timer
+      timerRef.current = setInterval(() => {
+        setRecordingTime((prevTime) => prevTime + 1);
+      }, 1000);
+    } else {
+      // Stop the timer
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+
+    // Cleanup function to clear interval on unmount
+    return () => {
+      clearInterval(timerRef.current);
+    };
+  }, [isRecording]);
+
+  /**
+   * Toggles the recording state and resets the timer.
+   */
+  const handleMicClick = () => {
+    if (isRecording) {
+      // Stop recording
+      setIsRecording(false);
+    } else {
+      // Start recording
+      setRecordingTime(0); // Reset timer
+      setIsRecording(true);
+    }
+  };
+
+  /**
+   * Formats time in seconds to MM:SS format.
+   * @param {number} timeInSeconds - The total time in seconds.
+   * @returns {string} The formatted time string (e.g., "01:23").
+   */
+  const formatTime = (timeInSeconds) => {
+    const minutes = Math.floor(timeInSeconds / 60)
+      .toString()
+      .padStart(2, '0');
+    const seconds = (timeInSeconds % 60).toString().padStart(2, '0');
+    return `${minutes}:${seconds}`;
+  };
+
   return (
-    <div className="min-h-screen bg-gray-100 py-6 flex flex-col justify-center sm:py-12">
-      <div className="relative py-3 sm:max-w-xl sm:mx-auto">
-        <div className="absolute inset-0 bg-gradient-to-r from-cyan-400 to-light-blue-500 shadow-lg transform -skew-y-6 sm:skew-y-0 sm:-rotate-6 sm:rounded-3xl"></div>
-        <div className="relative px-4 py-10 bg-white shadow-lg sm:rounded-3xl sm:p-20">
-          <div className="max-w-md mx-auto">
-            <div className="divide-y divide-gray-200">
-              <div className="py-8 text-base leading-6 space-y-4 text-gray-700 sm:text-lg sm:leading-7">
-                <p className="text-cyan-600 font-bold text-3xl mb-5">Tailwind Test</p>
-                <div className="flex space-x-4">
-                  <button className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors">
-                    Button 1
-                  </button>
-                  <button className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors">
-                    Button 2
-                  </button>
-                </div>
-                <div className="mt-5 space-y-2">
-                  <div className="h-4 w-full bg-gray-200 rounded"></div>
-                  <div className="h-4 w-3/4 bg-gray-200 rounded"></div>
-                  <div className="h-4 w-1/2 bg-gray-200 rounded"></div>
-                </div>
-              </div>
-            </div>
+    <div className="flex items-center justify-center min-h-screen w-full bg-bg-color text-gray-700 font-sans antialiased">
+      <div className="w-full max-w-md mx-4 p-8 bg-bg-color border border-[#15ff00] rounded-2xl shadow-2xl space-y-8">
+        
+        {/* Header Section */}
+        <div className="text-center">
+          <h1 className="text-3xl font-bold text-white mb-2">
+            Welcome to AI Voice Chat
+          </h1>
+          <p className="text-lg text-gray-400">
+            Select your language and tap the mic to start.
+          </p>
+        </div>
+
+        {/* Language Selection */}
+        <div className="space-y-3">
+          <label
+            htmlFor="language-select"
+            className="flex items-center text-sm font-medium text-gray-500"
+          >
+            <Globe className="w-5 h-5 mr-2" />
+            Choose a Language
+          </label>
+          <select
+            id="language-select"
+            value={selectedLanguage}
+            onChange={(e) => setSelectedLanguage(e.target.value)}
+            className="w-full p-3 bg-gray-100 border border-gray-400 rounded-lg text-gray-600 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-200"
+          >
+            {languageOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Microphone Button and Timer */}
+        <div className="flex flex-col items-center justify-center space-y-6 pt-4">
+          <button
+            onClick={handleMicClick}
+            className={`relative flex items-center justify-center w-28 h-28 rounded-full transition-all duration-300 ease-in-out shadow-lg focus:outline-none focus:ring-4 focus:ring-opacity-50
+              ${
+                isRecording
+                  ? 'bg-red-600 hover:bg-red-700 focus:ring-red-400'
+                  : 'bg-blue-600 hover:bg-blue-700 focus:ring-blue-400'
+              }
+            `}
+          >
+            {/* Pulsing animation when recording */}
+            {isRecording && (
+              <span className="absolute inline-flex h-full w-full rounded-full bg-red-500 opacity-75 animate-ping"></span>
+            )}
+            <Mic className="w-12 h-12 text-white z-10" />
+          </button>
+
+          {/* Recording Timer */}
+          <div className="h-8">
+            {isRecording && (
+              <p className="text-xl font-mono text-gray-300 animate-pulse">
+                {formatTime(recordingTime)}
+              </p>
+            )}
+            {!isRecording && recordingTime > 0 && (
+              <p className="text-xl font-mono text-gray-500">
+                {formatTime(recordingTime)}
+              </p>
+            )}
           </div>
         </div>
       </div>
     </div>
-  )
+  );
 }
-
-export default App
