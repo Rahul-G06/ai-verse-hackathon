@@ -1,145 +1,377 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Mic, Globe } from 'lucide-react';
+import React, { useState, useEffect, useRef } from "react";
+import { Mic, Globe, Cpu } from "lucide-react";
 
-// Language options for the dropdown
 const languageOptions = [
-  { value: 'detect', label: 'Detect Language' },
-  { value: 'en-US', label: 'English (US)' },
-  { value: 'es-ES', label: 'Español (España)' },
-  { value: 'fr-FR', label: 'Français (France)' },
-  { value: 'de-DE', label: 'Deutsch (Deutschland)' },
-  { value: 'ja-JP', label: '日本語 (日本)' },
-  { value: 'ko-KR', label: '한국어 (대한민국)' },
-  { value: 'hi-IN', label: 'हिन्दी (भारत)' },
-  { value: 'ar-SA', label: 'العربية (السعودية)' },
+  { value: "detect", label: "Detect Language" },
+  { value: "en-US", label: "English (US)" },
+  { value: "es-ES", label: "Español (España)" },
+  { value: "fr-FR", label: "Français (France)" },
+  { value: "de-DE", label: "Deutsch (Deutschland)" },
+  { value: "ja-JP", label: "日本語 (日本)" },
+  { value: "ko-KR", label: "한국어 (대한민국)" },
+  { value: "hi-IN", label: "हिन्दी (भारत)" },
+  { value: "ar-SA", label: "العربية (السعودية)" },
 ];
 
-/**
- * Main application component.
- * Renders the UI for the multilingual AI voice chatbot.
- */
 export default function App() {
   const [isRecording, setIsRecording] = useState(false);
-  const [selectedLanguage, setSelectedLanguage] = useState('detect');
+  const [selectedLanguage, setSelectedLanguage] = useState("detect");
   const [recordingTime, setRecordingTime] = useState(0);
   const timerRef = useRef(null);
 
-  // Effect to handle the recording timer
   useEffect(() => {
     if (isRecording) {
-      // Start the timer
       timerRef.current = setInterval(() => {
-        setRecordingTime((prevTime) => prevTime + 1);
+        setRecordingTime((prev) => prev + 1);
       }, 1000);
     } else {
-      // Stop the timer
       clearInterval(timerRef.current);
       timerRef.current = null;
     }
-
-    // Cleanup function to clear interval on unmount
-    return () => {
-      clearInterval(timerRef.current);
-    };
+    return () => clearInterval(timerRef.current);
   }, [isRecording]);
 
-  /**
-   * Toggles the recording state and resets the timer.
-   */
   const handleMicClick = () => {
     if (isRecording) {
-      // Stop recording
       setIsRecording(false);
     } else {
-      // Start recording
-      setRecordingTime(0); // Reset timer
+      setRecordingTime(0);
       setIsRecording(true);
     }
   };
 
-  /**
-   * Formats time in seconds to MM:SS format.
-   * @param {number} timeInSeconds - The total time in seconds.
-   * @returns {string} The formatted time string (e.g., "01:23").
-   */
-  const formatTime = (timeInSeconds) => {
-    const minutes = Math.floor(timeInSeconds / 60)
+  const formatTime = (seconds) => {
+    const m = Math.floor(seconds / 60)
       .toString()
-      .padStart(2, '0');
-    const seconds = (timeInSeconds % 60).toString().padStart(2, '0');
-    return `${minutes}:${seconds}`;
+      .padStart(2, "0");
+    const s = (seconds % 60).toString().padStart(2, "0");
+    return `${m}:${s}`;
   };
 
+  // --- Unified design colors ---
+  const lightGreen = "#b8ffb0";
+  const deepBg = "#08140d";
+  const blendedBg = "#0b1c12";
+
   return (
-    <div className="flex items-center justify-center min-h-screen w-full bg-bg-color text-gray-700 font-sans antialiased">
-      <div className="w-full max-w-md mx-4 p-8 bg-bg-color border border-[#15ff00] rounded-2xl shadow-2xl space-y-8">
-        
-        {/* Header Section */}
-        <div className="text-center">
-          <h1 className="text-3xl font-bold text-white mb-2">
-            Welcome to AI Voice Chat
-          </h1>
-          <p className="text-lg text-gray-400">
-            Select your language and tap the mic to start.
-          </p>
-        </div>
+    <div
+      className="min-h-screen w-full flex flex-col items-center justify-end font-sans antialiased"
+      style={{
+        background: `radial-gradient(circle at top, #0f2618 0%, ${deepBg} 70%, #050a06 100%)`,
+        padding: "0 16px 82px",
+        overflow: "hidden",
+      }}
+    >
+      {/* Floating header (centered vertically above box) */}
+      <div
+        style={{
+          textAlign: "center",
+          marginBottom: "140px",
+          transform: "translateY(-40px)",
+        }}
+      >
+        <h1
+          style={{
+            color: lightGreen,
+            fontSize: 30,
+            fontWeight: 800,
+          }}
+        >
+          AI Voice Chat
+        </h1>
+        <p style={{ color: "#bcd3c0", marginTop: 6, fontSize: 15 }}>
+          Select your language and model, then hold the mic to record.
+        </p>
+      </div>
 
-        {/* Language Selection */}
-        <div className="space-y-3">
-          <label
-            htmlFor="language-select"
-            className="flex items-center text-sm font-medium text-gray-500"
-          >
-            <Globe className="w-5 h-5 mr-2" />
-            Choose a Language
-          </label>
-          <select
-            id="language-select"
-            value={selectedLanguage}
-            onChange={(e) => setSelectedLanguage(e.target.value)}
-            className="w-full p-3 bg-gray-100 border border-gray-400 rounded-lg text-gray-600 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-200"
-          >
-            {languageOptions.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </div>
+      {/* Main container */}
+      <div
+        style={{
+          width: "98%",
+          maxWidth: "1400px",
+          position: "relative",
+          padding: "28px",
+          background: `linear-gradient(180deg, rgba(11,26,18,0.85) 0%, rgba(10,22,15,0.92) 60%, rgba(8,20,13,1) 100%)`,
+          borderLeft: `1px solid ${lightGreen}40`,
+          borderRight: `1px solid ${lightGreen}40`,
+          borderBottom: `1px solid ${lightGreen}60`,
+          borderTop: "none",
+          borderRadius: "22px",
+          borderTopLeftRadius: "0px",
+          borderTopRightRadius: "0px",
+          boxShadow: `0 32px 60px rgba(184,255,176,0.07)`,
+          overflow: "visible",
+        }}
+      >
+        {/* Infinite upward gradient for “endless glass” illusion */}
+        <div
+          aria-hidden
+          style={{
+            position: "absolute",
+            top: "-100vh",
+            left: 0,
+            right: 0,
+            height: "100vh",
+            background: `linear-gradient(to bottom, rgba(8,20,13,0.0), rgba(8,20,13,0.2), rgba(8,20,13,0.5))`,
+            pointerEvents: "none",
+          }}
+        />
 
-        {/* Microphone Button and Timer */}
-        <div className="flex flex-col items-center justify-center space-y-6 pt-4">
-          <button
-            onClick={handleMicClick}
-            className={`relative flex items-center justify-center w-28 h-28 rounded-full transition-all duration-300 ease-in-out shadow-lg focus:outline-none focus:ring-4 focus:ring-opacity-50
-              ${
-                isRecording
-                  ? 'bg-red-600 hover:bg-red-700 focus:ring-red-400'
-                  : 'bg-blue-600 hover:bg-blue-700 focus:ring-blue-400'
-              }
-            `}
-          >
-            {/* Pulsing animation when recording */}
-            {isRecording && (
-              <span className="absolute inline-flex h-full w-full rounded-full bg-red-500 opacity-75 animate-ping"></span>
-            )}
-            <Mic className="w-12 h-12 text-white z-10" />
-          </button>
+        {/* Side fades for smooth blending */}
+        <div
+          aria-hidden
+          style={{
+            position: "absolute",
+            left: "-60px",
+            top: 0,
+            bottom: 0,
+            width: "140px",
+            pointerEvents: "none",
+            background: `linear-gradient(to right, ${deepBg} 0%, rgba(11,26,18,0))`,
+          }}
+        />
+        <div
+          aria-hidden
+          style={{
+            position: "absolute",
+            right: "-60px",
+            top: 0,
+            bottom: 0,
+            width: "140px",
+            pointerEvents: "none",
+            background: `linear-gradient(to left, ${deepBg} 0%, rgba(11,26,18,0))`,
+          }}
+        />
 
-          {/* Recording Timer */}
-          <div className="h-8">
-            {isRecording && (
-              <p className="text-xl font-mono text-gray-300 animate-pulse">
+        {/* Bottom glow */}
+        <div
+          aria-hidden
+          style={{
+            position: "absolute",
+            bottom: "-120px",
+            left: "10%",
+            right: "10%",
+            height: "220px",
+            background: `radial-gradient(ellipse at bottom, rgba(184,255,176,0.1) 0%, transparent 70%)`,
+            pointerEvents: "none",
+            filter: "blur(40px)",
+          }}
+        />
+
+        {/* Content area */}
+        <div style={{ display: "flex", flexDirection: "column", gap: "22px" }}>
+          {/* Top row: language + model */}
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              gap: 14,
+              alignItems: "center",
+            }}
+          >
+            <div style={{ flex: "0 0 260px" }}>
+              <label
+                htmlFor="language-select"
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  color: "#9fbf95",
+                  fontSize: 12,
+                }}
+              >
+                <Globe size={14} color={lightGreen} />
+                <span>Language</span>
+              </label>
+              <select
+                id="language-select"
+                value={selectedLanguage}
+                onChange={(e) => setSelectedLanguage(e.target.value)}
+                style={{
+                  width: "100%",
+                  marginTop: 6,
+                  padding: "7px 9px",
+                  background: blendedBg,
+                  color: lightGreen,
+                  border: `1px solid ${lightGreen}40`,
+                  borderRadius: 10,
+                  fontSize: 13,
+                  outline: "none",
+                }}
+              >
+                {languageOptions.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div style={{ flex: 1 }} />
+
+            <div style={{ flex: "0 0 240px", textAlign: "right" }}>
+              <label
+                htmlFor="model-select"
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 8,
+                  color: "#9fbf95",
+                  fontSize: 12,
+                }}
+              >
+                <Cpu size={14} color={lightGreen} />
+                <span>Model</span>
+              </label>
+              <select
+                id="model-select"
+                style={{
+                  width: "100%",
+                  marginTop: 6,
+                  padding: "7px 9px",
+                  background: blendedBg,
+                  color: lightGreen,
+                  border: `1px solid ${lightGreen}40`,
+                  borderRadius: 10,
+                  fontSize: 13,
+                  outline: "none",
+                }}
+              >
+                <option value="gpt-voice">GPT Voice Model</option>
+                <option value="whisper">Whisper Speech Model</option>
+                <option value="custom">Custom Model</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Recording area */}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              width: "100%",
+              height: 86,
+              borderRadius: 18,
+              overflow: "hidden",
+              border: `1px solid ${lightGreen}45`,
+              background: blendedBg,
+            }}
+          >
+            {/* Timer */}
+            <div
+              style={{
+                width: 160,
+                minWidth: 120,
+                height: "100%",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                background: "#0a1e13",
+                borderRight: `1px solid ${lightGreen}25`,
+                borderTopLeftRadius: 18,
+                borderBottomLeftRadius: 18,
+              }}
+            >
+              <div
+                style={{
+                  color: isRecording ? lightGreen : "#97a89a",
+                  fontFamily:
+                    "ui-monospace, SFMono-Regular, Menlo, Monaco, monospace",
+                  fontSize: 20,
+                  fontWeight: 600,
+                  animation: isRecording ? "pulse 1s linear infinite" : "none",
+                }}
+              >
                 {formatTime(recordingTime)}
-              </p>
-            )}
-            {!isRecording && recordingTime > 0 && (
-              <p className="text-xl font-mono text-gray-500">
-                {formatTime(recordingTime)}
-              </p>
-            )}
+              </div>
+            </div>
+
+            {/* Placeholder text */}
+            <div
+              style={{
+                flex: 1,
+                height: "100%",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                color: "#a5bca8",
+                fontSize: 16,
+                padding: "0 18px",
+                textAlign: "center",
+                userSelect: "none",
+              }}
+            >
+              Press and Hold the Microphone button to record
+            </div>
+
+            {/* Mic */}
+            <div
+              style={{
+                width: 120,
+                minWidth: 110,
+                height: "100%",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                background: "#0a1e13",
+                borderLeft: `1px solid ${lightGreen}25`,
+                borderTopRightRadius: 18,
+                borderBottomRightRadius: 18,
+              }}
+            >
+              <button
+                onClick={handleMicClick}
+                style={{
+                  width: 68,
+                  height: 68,
+                  borderRadius: "999px",
+                  border: "none",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  cursor: "pointer",
+                  boxShadow: isRecording
+                    ? "0 8px 30px rgba(255,80,80,0.14)"
+                    : `0 8px 24px rgba(184,255,176,0.08)`,
+                  background: isRecording ? "#d94a4a" : lightGreen,
+                  transition: "transform 0.12s ease, box-shadow 0.12s ease",
+                  position: "relative",
+                }}
+                aria-pressed={isRecording}
+              >
+                {isRecording && (
+                  <span
+                    style={{
+                      position: "absolute",
+                      width: 68,
+                      height: 68,
+                      borderRadius: "999px",
+                      background: "rgba(217,74,74,0.16)",
+                      animation: "ping 1s cubic-bezier(.4,0,0.6,1) infinite",
+                    }}
+                  />
+                )}
+                <Mic size={28} color={isRecording ? "#fff" : "#07140f"} />
+              </button>
+            </div>
           </div>
         </div>
+
+        {/* Animations */}
+        <style>
+          {`
+            @keyframes ping {
+              0% { transform: scale(1); opacity: 0.8; }
+              70% { transform: scale(1.9); opacity: 0; }
+              100% { transform: scale(2); opacity: 0; }
+            }
+            @keyframes pulse {
+              0% { opacity: 1; transform: translateY(0); }
+              50% { opacity: 0.65; transform: translateY(-1px); }
+              100% { opacity: 1; transform: translateY(0); }
+            }
+          `}
+        </style>
       </div>
     </div>
   );
