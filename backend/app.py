@@ -9,21 +9,24 @@ import tempfile
 import shutil
 import os
 import io
-import logging # Import the logging module
+import logging
+
+# --- Import chat logic and router ---
+from llm_logic import get_llm_response
+from chat_router import chat_router
 
 # --- 1. Configure Logging ---
-# Set up basic configuration for logging
 logging.basicConfig(
-    level=logging.INFO, # Set the logging level (INFO, DEBUG, ERROR, etc.)
+    level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
-logger = logging.getLogger(__name__) # Get a logger for this module
+logger = logging.getLogger(__name__)
 
 app = FastAPI()
 
 logger.info("Starting FastAPI application...")
 
-# Allow cross-origin requests from the frontend during development.
+# Allow cross-origin requests
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -31,6 +34,11 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# --- Include the text-based chat router ---
+# This adds the "/chat" endpoint for text messages
+app.include_router(chat_router)
+logger.info("Included /chat text router.")
 
 # --- Model Initialization (Do this once!) ---
 stt_model = None
@@ -40,10 +48,10 @@ try:
     logger.info("Whisper model loaded successfully.")
 except Exception as e:
     logger.error(f"CRITICAL: Error loading Whisper model: {e}", exc_info=True)
-    # Note: The app will still run, but /stt and /echo will fail.
+    # The app will run, but audio endpoints will fail
 
-# --- STT Endpoint ---
-@app.post("/stt")
+# --- STT Endpoint (No change) ---
+@app.post("/stt", tags=["Utility"])
 async def speech_to_text(audio_file: UploadFile = File(...)):
     logger.info("Received request on /stt endpoint.")
     if stt_model is None:
@@ -68,12 +76,12 @@ async def speech_to_text(audio_file: UploadFile = File(...)):
         os.remove(tmp_path)
         logger.info(f"Removed temporary file: {tmp_path}")
 
-# --- TTS Endpoint ---
+# --- TTS Endpoint (No change) ---
 class TTSText(BaseModel):
     text: str
     lang_code: str = 'en' # Add a default language
 
-@app.post("/tts")
+@app.post("/tts", tags=["Utility"])
 async def text_to_speech(item: TTSText):
     logger.info(f"Received request on /tts endpoint. Text: {item.text[:50]}...")
     if not item.text:
@@ -100,10 +108,11 @@ async def text_to_speech(item: TTSText):
         logger.error(f"Failed to generate audio with gTTS: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to generate audio with gTTS: {e}")
 
-# --- NEW: Echo Endpoint (STT -> TTS) ---
-@app.post("/echo")
-async def speech_to_speech_echo(audio_file: UploadFile = File(...)):
-    logger.info("Received request on /echo endpoint.")
+# --- MODIFIED: Audio Chat Endpoint (STT -> LLM -> TTS) ---
+# This is the endpoint your App.jsx is calling
+@app.post("/echo", tags=["Audio Chat"])
+async def audio_chat_pipeline(audio_file: UploadFile = File(...)):
+    logger.info("Received request on /echo (Audio Chat) endpoint.")
     
     if stt_model is None:
         logger.error("/echo: STT model is not loaded. Returning error.")
@@ -128,23 +137,28 @@ async def speech_to_speech_echo(audio_file: UploadFile = File(...)):
         
         if not transcribed_text:
              logger.warning("/echo: Transcription result was empty.")
-             transcribed_text = "I could not understand what you said."
+             # We will send this empty string to the LLM
         else:
              logger.info(f"/echo: Transcription successful. Text: {transcribed_text}")
              
     except Exception as e:
         logger.error(f"/echo: Error during transcription: {e}", exc_info=True)
-        transcribed_text = "I encountered an error during transcription."
+        transcribed_text = "I encountered an error during transcription." # Send error to LLM
     finally:
         if os.path.exists(tmp_path):
             os.remove(tmp_path)
             logger.info(f"/echo: Removed temporary file: {tmp_path}")
 
-    # --- 2. TTS (Text-to-Speech) ---
+    # --- 2. LLM (Text-to-Text) ---
+    logger.info(f"/echo: Sending transcribed text to LLM: '{transcribed_text}'")
+    llm_response_text = await get_llm_response(transcribed_text)
+    logger.info(f"/echo: Received response from LLM: '{llm_response_text[:50]}...'")
+
+    # --- 3. TTS (Text-to-Speech) ---
     try:
-        logger.info(f"/echo: Generating speech with gTTS for text: '{transcribed_text}'")
-        # For simplicity, this echo is hardcoded to English ('en')
-        tts = gTTS(text=transcribed_text, lang='en') 
+        logger.info(f"/echo: Generating speech with gTTS for LLM response...")
+        # Hardcoding to English ('en') for the AI's response.
+        tts = gTTS(text=llm_response_text, lang='en') 
         
         audio_fp = io.BytesIO()
         tts.write_to_fp(audio_fp)
@@ -158,11 +172,10 @@ async def speech_to_speech_echo(audio_file: UploadFile = File(...)):
         return StreamingResponse(
             iterfile(), 
             media_type="audio/mp3",
-            headers={"Content-Disposition": "attachment;filename=echo.mp3"}
+            headers={"Content-Disposition": "attachment;filename=response.mp3"}
         )
     except Exception as e:
         logger.error(f"/echo: Failed to generate audio with gTTS: {e}", exc_info=True)
-        # Return a JSON error this time, as the client handles it
         raise HTTPException(status_code=500, detail=f"Failed to generate audio with gTTS: {e}")
 
 
