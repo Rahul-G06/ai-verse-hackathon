@@ -52,7 +52,7 @@ async def text_to_speech(item: TTSText):
     
     try:
         # Create the gTTS object
-        tts = gTTS(text=item.text, lang='en')
+        tts = gTTS(text=item.text, lang=item.lang_code if hasattr(item, 'lang_code') else 'en')
         
         # Save the audio to a BytesIO object (in memory) instead of a file
         # This is more efficient for FastAPI!
