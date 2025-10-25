@@ -1,4 +1,6 @@
 from fastapi import FastAPI, File, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 import whisper
 from gtts import gTTS
@@ -8,6 +10,16 @@ import os
 import io
 
 app = FastAPI()
+
+# Allow cross-origin requests from the frontend during development.
+# You can restrict origins to only your dev server (e.g. http://localhost:5173) if desired.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # --- Model Initialization (Do this once!) ---
 
@@ -76,3 +88,12 @@ async def text_to_speech(item: TTSText):
         # gTTS errors will now be caught here
         return {"error": f"Failed to generate audio with gTTS: {e}"}
 from fastapi.responses import StreamingResponse
+
+
+# --- Optional: serve built frontend (production) ---
+# If you run `npm run build` in the frontend, the output is typically in `frontend/dist`.
+# When that folder exists, mount it so FastAPI will serve the static files and index.html.
+BASE_DIR = os.path.dirname(__file__)
+FRONTEND_DIST = os.path.normpath(os.path.join(BASE_DIR, "..", "frontend", "dist"))
+if os.path.isdir(FRONTEND_DIST):
+    app.mount("/", StaticFiles(directory=FRONTEND_DIST, html=True), name="frontend")
