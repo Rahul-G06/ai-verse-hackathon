@@ -10,7 +10,12 @@ import {
   Pause,
   Download,
   Send,
+  AlertTriangle, // ADDED for error messages
 } from "lucide-react";
+
+// --- (languageOptions, createPlaceholderWavBlob, AudioVisualizer, VoiceMessageBubble...
+// ...all remain unchanged, so they are omitted for brevity) ---
+// --- [Omitting unchanged components: languageOptions, createPlaceholderWavBlob, AudioVisualizer, VoiceMessageBubble] ---
 
 const languageOptions = [
   { value: "detect", label: "Detect Language" },
@@ -25,7 +30,7 @@ const languageOptions = [
 ];
 
 /**
- * Creates a placeholder WAV file blob.
+ * Creates a placeholder WAV file blob. (Kept for potential fallback)
  * @param {number} duration - The duration of the audio in seconds.
  * @returns {Blob} A blob containing the WAV file.
  */
@@ -107,28 +112,22 @@ const AudioVisualizer = ({ lightGreen }) => {
 
 // --- 1. Voice Message Bubble Component ---
 
-/*
-// Removed TypeScript-specific interface
-interface VoiceMessageBubbleProps {
-  audioUrl: string;
-  isUser: boolean;
-  timestamp: Date;
-  duration?: number;
-}
-*/
-
-const VoiceMessageBubble = ({ // Removed React.FC<VoiceMessageBubbleProps>
+const VoiceMessageBubble = ({
   audioUrl,
   isUser,
   timestamp,
   duration: initialDuration,
+  error, // NEW: Prop to handle error messages
 }) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(initialDuration || 0);
-  const audioRef = useRef(null); // Removed <HTMLAudioElement>
+  const audioRef = useRef(null); 
 
   useEffect(() => {
+    // Don't run effect if this is an error bubble
+    if (error) return;
+
     const audio = audioRef.current;
     if (!audio) return;
 
@@ -138,28 +137,23 @@ const VoiceMessageBubble = ({ // Removed React.FC<VoiceMessageBubbleProps>
         setDuration(audio.duration);
       }
     };
-    const handleEnded = () => {
-      setIsPlaying(false);
-      setCurrentTime(0);
-    };
-
+    
+    // --- ADDED: Event listeners for audio lifecycle ---
     audio.addEventListener("timeupdate", updateTime);
     audio.addEventListener("loadedmetadata", updateDuration);
-    audio.addEventListener("durationchange", updateDuration);
-    audio.addEventListener("ended", handleEnded);
-
-    // Set duration if it's already available
-    if (audio.duration && !isNaN(audio.duration) && isFinite(audio.duration)) {
-      setDuration(audio.duration);
-    }
+    audio.addEventListener("ended", () => setIsPlaying(false));
+    
+    // Set duration on load, in case metadata is already loaded
+    updateDuration();
 
     return () => {
       audio.removeEventListener("timeupdate", updateTime);
       audio.removeEventListener("loadedmetadata", updateDuration);
-      audio.removeEventListener("durationchange", updateDuration);
-      audio.removeEventListener("ended", handleEnded);
+      audio.removeEventListener("ended", () => setIsPlaying(false));
     };
-  }, [audioUrl]); // Re-run if audioUrl changes
+    // --- END: Event listeners ---
+    
+  }, [audioUrl, error]); // Re-run if audioUrl changes or if error exists
 
   const togglePlay = () => {
     const audio = audioRef.current;
@@ -176,13 +170,16 @@ const VoiceMessageBubble = ({ // Removed React.FC<VoiceMessageBubbleProps>
   const handleDownload = () => {
     const link = document.createElement("a");
     link.href = audioUrl;
-    link.download = `voice-message-${timestamp.getTime()}.webm`;
+    // Note: The backend returns an mp3, but the original frontend
+    // was saving as .webm. We'll keep .webm for consistency for now
+    // unless the backend filename is used.
+    link.download = `voice-message-${timestamp.getTime()}.mp3`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
   };
 
-  const formatTime = (seconds) => { // Removed : number type
+  const formatTime = (seconds) => {
     if (isNaN(seconds) || !isFinite(seconds)) return "0:00";
     const mins = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
@@ -197,6 +194,8 @@ const VoiceMessageBubble = ({ // Removed React.FC<VoiceMessageBubbleProps>
   const secondaryBg = "#1f2937";
   const secondaryFg = "#f9fafb";
   const mutedFg = "#9ca3af";
+  const errorBg = "#450a0a"; // bg-red-950
+  const errorFg = "#fecaca"; // text-red-200
   
   const isUserStyle = {
     bg: lightGreen, // primary
@@ -226,8 +225,62 @@ const VoiceMessageBubble = ({ // Removed React.FC<VoiceMessageBubbleProps>
     timestampFg: mutedFg, // text-muted-foreground
   };
   
-  const style = isUser ? isUserStyle : aiStyle;
+  // NEW: Style for error bubbles
+  const errorStyle = {
+    bg: errorBg,
+    fg: errorFg,
+    bubbleBg: errorBg,
+    bubbleFg: errorFg,
+    btnBg: `${errorFg}20`,
+    btnHoverBg: `${errorFg}30`,
+    barActive: errorFg,
+    barInactive: `${errorFg}30`,
+    timeFg: `${errorFg}B3`,
+    dlFg: errorFg,
+    timestampFg: `${errorFg}99`,
+  };
+  
+  const style = isUser ? isUserStyle : (error ? errorStyle : aiStyle);
 
+  // NEW: Render a special error bubble
+  if (error) {
+    return (
+      <div
+        className={`flex justify-start mb-4 animate-in fade-in slide-in-from-bottom-2`}
+        style={{ animationDuration: "300ms" }}
+      >
+        <div
+          className={`flex flex-col max-w-[320px] rounded-2xl p-3 shadow-lg`}
+          style={{ background: style.bubbleBg, color: style.bubbleFg }}
+        >
+          <div className="flex items-center gap-3">
+            <div
+              className="flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center"
+              style={{ background: style.btnBg, color: style.fg }}
+            >
+              <AlertTriangle size={20} />
+            </div>
+            <div className="flex-1 flex flex-col gap-1">
+              <span className="font-bold">Error</span>
+              <p className="text-sm">{error}</p>
+            </div>
+          </div>
+          {/* Timestamp */}
+          <div
+            className={`text-xs mt-2`}
+            style={{ color: style.timestampFg }}
+          >
+            {timestamp.toLocaleTimeString("en-US", {
+              hour: "2-digit",
+              minute: "2-digit",
+            })}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Regular audio bubble
   return (
     <div
       className={`flex ${
@@ -239,7 +292,13 @@ const VoiceMessageBubble = ({ // Removed React.FC<VoiceMessageBubbleProps>
         className={`flex flex-col max-w-[320px] rounded-2xl p-3 shadow-lg`}
         style={{ background: style.bubbleBg, color: style.bubbleFg }}
       >
-        <audio ref={audioRef} src={audioUrl} preload="metadata" />
+        {/* --- MODIFIED: Added key prop to force re-render on new URL --- */}
+        <audio 
+          ref={audioRef} 
+          src={audioUrl} 
+          preload="metadata" 
+          key={audioUrl} 
+        />
 
         <div className="flex items-center gap-3">
           {/* Play/Pause Button */}
@@ -309,38 +368,31 @@ const VoiceMessageBubble = ({ // Removed React.FC<VoiceMessageBubbleProps>
   );
 };
 
-// Added PropTypes for runtime type checking in JavaScript
 VoiceMessageBubble.propTypes = {
-  audioUrl: PropTypes.string.isRequired,
+  audioUrl: PropTypes.string, // Can be null for error messages
   isUser: PropTypes.bool.isRequired,
   timestamp: PropTypes.instanceOf(Date).isRequired,
   duration: PropTypes.number,
+  error: PropTypes.string, // NEW: error prop
 };
 
 // --- Main App Component ---
-
-/*
-// Removed TypeScript-specific interface
-interface VoiceMessage {
-  id: string;
-  audioUrl: string;
-  isUser: boolean;
-  timestamp: Date;
-  duration: number;
-}
-*/
 
 export default function App() {
   const [isRecording, setIsRecording] = useState(false);
   const [selectedLanguage, setSelectedLanguage] = useState("detect");
   const [recordingTime, setRecordingTime] = useState(0);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [messages, setMessages] = useState([]); // Removed <VoiceMessage[]>
+  const [messages, setMessages] = useState([]); 
   
-  const timerRef = useRef(null); // Removed <number | null>
-  const mediaRecorderRef = useRef(null); // Removed <MediaRecorder | null>
-  const audioChunksRef = useRef([]); // Removed <Blob[]>
-  const messagesEndRef = useRef(null); // Removed <HTMLDivElement>
+  const timerRef = useRef(null); 
+  const mediaRecorderRef = useRef(null); 
+  const audioChunksRef = useRef([]); 
+  const messagesEndRef = useRef(null); 
+
+  // --- ADDED: Log API URL ---
+  const API_URL = "http://localhost:8000/echo";
+  console.log("React App component rendered. API URL set to:", API_URL);
 
   // Auto-scroll to bottom of chat
   const scrollToBottom = () => {
@@ -365,10 +417,16 @@ export default function App() {
    * Starts the audio recording process.
    */
   const startRecording = async () => {
-    if (isProcessing) return;
+    // --- ADDED: Log ---
+    console.log("startRecording() triggered.");
+    if (isProcessing) {
+      console.warn("Recording disabled: Processing is active.");
+      return;
+    }
     audioChunksRef.current = [];
 
     try {
+      console.log("Requesting user media (microphone)...");
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
           echoCancellation: true,
@@ -376,6 +434,7 @@ export default function App() {
           autoGainControl: true,
         },
       });
+      console.log("Microphone access granted.");
 
       // Use webm format
       const options = { mimeType: "audio/webm;codecs=opus" };
@@ -385,14 +444,21 @@ export default function App() {
 
       mediaRecorder.ondataavailable = (event) => {
         if (event.data.size > 0) {
+          // --- ADDED: Log ---
+          console.log(`MediaRecorder: data available. Chunk size: ${event.data.size}`);
           audioChunksRef.current.push(event.data);
         }
       };
 
       mediaRecorder.onstop = () => {
+        // --- ADDED: Log ---
+        console.log("MediaRecorder: stopped.");
         const audioBlob = new Blob(audioChunksRef.current, {
           type: "audio/webm",
         });
+        
+        // --- ADDED: Log ---
+        console.log(`Created audio blob. Size: ${audioBlob.size} bytes. Type: ${audioBlob.type}`);
         
         // Pass to the chat handler
         handleRecordingComplete(audioBlob, recordingTime);
@@ -404,10 +470,19 @@ export default function App() {
       mediaRecorder.start();
       setIsRecording(true);
       setRecordingTime(0);
+      console.log("Recording started.");
       
     } catch (error) {
       console.error("Error accessing microphone:", error);
-      // Add user feedback here
+      // NEW: Show error in chat
+      setMessages((prev) => [...prev, {
+        id: `error-${Date.now()}`,
+        audioUrl: null,
+        isUser: false,
+        timestamp: new Date(),
+        duration: 0,
+        error: "Could not access microphone. Please check permissions."
+      }]);
     }
   };
 
@@ -415,23 +490,48 @@ export default function App() {
    * Stops the audio recording process.
    */
   const stopRecording = () => {
+    // --- ADDED: Log ---
+    console.log("stopRecording() triggered.");
     if (mediaRecorderRef.current && isRecording) {
       mediaRecorderRef.current.stop();
       setIsRecording(false);
+      console.log("MediaRecorder.stop() called.");
 
       if (timerRef.current) {
         clearInterval(timerRef.current);
         timerRef.current = null;
       }
+    } else {
+      console.warn("stopRecording() called, but no recorder or not recording.");
     }
   };
 
   /**
-   * Handles adding user message and simulating AI response.
+   * Handles sending the recording to the backend and receiving the response.
    */
-  const handleRecordingComplete = async (audioBlob, duration) => { // Removed : Blob, : number
-    // Create user message
-    const userMessage = { // Removed : VoiceMessage
+  const handleRecordingComplete = async (audioBlob, duration) => {
+    // --- ADDED: Log ---
+    console.log(`handleRecordingComplete() called. Blob size: ${audioBlob.size}, Duration: ${duration}s`);
+    
+    // --- NEW: Client-side validation ---
+    if (audioBlob.size < 1000) { // < 1KB
+      console.warn("Recording is too short (< 1KB), not sending.");
+      // Add error message to chat
+      setMessages((prev) => [...prev, {
+        id: `error-${Date.now()}`,
+        audioUrl: null,
+        isUser: false,
+        timestamp: new Date(),
+        duration: 0,
+        error: "Recording was too short. Please press and hold to record."
+      }]);
+      setIsProcessing(false); // Reset processing state
+      return; // Stop here
+    }
+    // --- END: Client-side validation ---
+
+    // Create user message immediately
+    const userMessage = {
       id: `user-${Date.now()}`,
       audioUrl: URL.createObjectURL(audioBlob),
       isUser: true,
@@ -441,24 +541,106 @@ export default function App() {
 
     setMessages((prev) => [...prev, userMessage]);
     setIsProcessing(true);
+    // --- ADDED: Log ---
+    console.log("User message added to chat. isProcessing set to true.");
 
-    // Simulate AI processing and response
-    setTimeout(() => {
-      // Create mock AI response
-      const aiAudioBlob = createPlaceholderWavBlob(5); // 5-second mock response
+    // --- UPDATED: API Call to Python Backend ---
+    const formData = new FormData();
+    formData.append("audio_file", audioBlob, "recording.webm");
+
+    try {
+      // --- ADDED: Log ---
+      console.log(`Sending POST request to ${API_URL}...`);
+      
+      // Send audio to the /echo endpoint
+      const response = await fetch(API_URL, {
+        method: "POST",
+        body: formData,
+      });
+
+      // --- ADDED: Log ---
+      console.log(`Received response from server. Status: ${response.status}, OK: ${response.ok}`);
+
+      // NEW: Check for 4xx/5xx error responses
+      if (!response.ok) {
+        let errorData;
+        try {
+          errorData = await response.json(); // FastAPI sends { "detail": "..." }
+          console.error("API Error (from JSON):", errorData.detail);
+        } catch (e) {
+          errorData = { detail: await response.text() }; // Fallback to text
+          console.error("API Error (from text):", errorData.detail);
+        }
+        throw new Error(errorData.detail || `API request failed with status ${response.status}`);
+      }
+
+      // Get the AI's audio response
+      // --- ADDED: Log ---
+      console.log("Response is OK. Attempting to get response.blob()...");
+      const aiAudioBlob = await response.blob();
+      // --- ADDED: Log ---
+      console.log(`Received AI audio blob. Size: ${aiAudioBlob.size}, Type: ${aiAudioBlob.type}`);
+      
+      if (aiAudioBlob.type !== "audio/mp3") {
+         console.error("Server didn't return an MP3 file, got:", aiAudioBlob.type);
+         // Try to read as JSON to see if it's an error message
+         if (aiAudioBlob.type === "application/json") {
+            const errorJson = JSON.parse(await aiAudioBlob.text());
+            console.error("Error from server (as JSON blob):", errorJson.detail);
+            throw new Error(errorJson.detail || "Invalid audio response from server");
+         }
+         throw new Error("Invalid audio response from server");
+      }
+      
       const aiAudioUrl = URL.createObjectURL(aiAudioBlob);
+      // --- ADDED: Log ---
+      console.log("Created Object URL for AI audio.");
 
-      const aiMessage = { // Removed : VoiceMessage
+      // Create AI message
+      const aiMessage = {
         id: `ai-${Date.now()}`,
-        audioUrl: aiAudioUrl, // Use placeholder audio
+        audioUrl: aiAudioUrl,
         isUser: false,
         timestamp: new Date(),
-        duration: 5, // Known duration
+        duration: 0, // Duration will be set by the bubble's `loadedmetadata` event
       };
 
       setMessages((prev) => [...prev, aiMessage]);
-      setIsProcessing(false);
-    }, 2000);
+      // --- ADDED: Log ---
+      console.log("AI message added to chat.");
+      
+    } catch (error) {
+      console.error("Error calling /echo endpoint:", error);
+      console.error("Full error object:", error);
+      // NEW: Add a user-facing error message to chat
+      // Customize error message for known issues
+      let friendlyError = "Sorry, I couldn't process that. Please try again.";
+      if (String(error.message).includes("Audio file is too small")) {
+        friendlyError = "Recording was too short. Please press and hold.";
+      } else if (String(error.message).includes("Failed to fetch")) {
+        friendlyError = `Cannot connect to server at ${API_URL}. Is it running?`;
+      } else {
+        // Show the error message from the API
+        friendlyError = error.message;
+      }
+
+      const errorMessage = {
+        id: `error-${Date.now()}`,
+        audioUrl: null, // No audio for an error
+        isUser: false,
+        timestamp: new Date(),
+        duration: 0,
+        error: friendlyError, // Pass the friendly error message
+      };
+      setMessages((prev) => [...prev, errorMessage]);
+      // --- ADDED: Log ---
+      console.log("Error message added to chat.");
+    } finally {
+      setIsProcessing(false); // Stop processing state
+      // --- ADDED: Log ---
+      console.log("isProcessing set to false.");
+    }
+    // --- END: API Call ---
   };
 
   const formatTime = (seconds) => {
@@ -639,6 +821,7 @@ export default function App() {
                     isUser={message.isUser}
                     timestamp={message.timestamp}
                     duration={message.duration}
+                    error={message.error} // Pass error prop
                   />
                 ))}
                 {isProcessing && (
@@ -1052,6 +1235,3 @@ export default function App() {
     </div>
   );
 }
-
-
-
